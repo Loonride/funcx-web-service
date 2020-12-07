@@ -1,4 +1,3 @@
-from funcx_web_service import create_app
 import pytest
 
 

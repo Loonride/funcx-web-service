@@ -2,7 +2,6 @@ import pytest
 
 from funcx_web_service.authentication.auth import authorize_endpoint, authorize_function
 from funcx_web_service.models.function import Function, FunctionAuthGroup
-from funcx_web_service.authentication.auth import app
 
 
 class TestAuth:
