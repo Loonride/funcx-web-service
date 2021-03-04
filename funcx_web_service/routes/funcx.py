@@ -289,16 +289,17 @@ def submit_batch(user_name):
 
 
 def get_tasks_from_redis(task_ids):
+    final_http_status = 200
     all_tasks = {}
 
     rc = get_redis_client()
     for task_id in task_ids:
         # Get the task from redis
         if not Task.exists(rc, task_id):
-            all_tasks[task_id] = {
-                'status': 'Failed',
-                'reason': 'Unknown task id'
-            }
+            # TODO: should this be left as it is, or should it
+            # be a TaskNotFound exception packed to json?
+            all_tasks[task_id] = create_error_response(TaskNotFound(task_id))[0]
+            final_http_status = 207
             continue
 
         task = Task.from_id(rc, task_id)
@@ -311,22 +312,13 @@ def get_tasks_from_redis(task_ids):
 
         all_tasks[task_id] = {
             'task_id': task_id,
-            'status': task_status,
+            'task_status': task_status,
             'result': task_result,
             'completion_t': task_completion_t,
-            'exception': task_exception
+            'exception': task_exception,
+            'http_status_code': 200
         }
-
-        # Note: this is for backwards compat, when we can't include a None result and have a
-        # non-complete status, we must forgo the result field if task not complete.
-        if task_result is None:
-            del all_tasks[task_id]['result']
-
-        # Note: this is for backwards compat, when we can't include a None result and have a
-        # non-complete status, we must forgo the result field if task not complete.
-        if task_exception is None:
-            del all_tasks[task_id]['exception']
-    return all_tasks
+    return all_tasks, final_http_status
 
 
 # TODO: Old APIs look at "/<task_id>/status" for status and result, when that's changed, we should remove this route
@@ -372,7 +364,7 @@ def status_and_result(user_name, task_id):
     # used for HTTP codes.
     response = {
         'task_id': task_id,
-        'status': task_status,
+        'task_status': task_status,
         'result': task_result,
         'completion_t': task_completion_t,
         'exception': task_exception
@@ -434,10 +426,10 @@ def batch_status(user: User):
         The status of the task
     """
     app.logger.debug("request : {}".format(request.json))
-    results = get_tasks_from_redis(request.json['task_ids'])
+    results, final_http_status = get_tasks_from_redis(request.json['task_ids'])
 
     return jsonify({'response': 'batch',
-                    'results': results})
+                    'results': results}), final_http_status
 
 
 # TODO: deprecated, delete this route
